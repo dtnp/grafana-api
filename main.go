@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -70,17 +71,19 @@ func run(log *slog.Logger) error {
     }
 
   } else {
-    body, err = getDashboard(log, argsWithoutProg[0])
+    body, err = getDashboard(argsWithoutProg[0])
     if err != nil {
       return fmt.Errorf("getDashboards [%s]: %v", argsWithoutProg, err)
     }
+
+    // desc := parseDashboard(body)
   }
   fmt.Println(body)
 
 	return nil
 }
 
-func getDashboard(log *slog.Logger, dashboardUID string) (string,error) {
+func getDashboard(dashboardUID string) (string,error) {
 	// TODO: DON'T Fix - no one is going to use this in prod ... right?  RIGHT!?
 	// CLI Injection RISK!  YEA!!
 	url := fmt.Sprintf("%s/dashboards/uid/%s", grafanaUrl, dashboardUID)
@@ -103,6 +106,18 @@ func getDashboard(log *slog.Logger, dashboardUID string) (string,error) {
 	}
 
 	return string(body), nil
+}
+
+// parseDashboard - technically, this is only pulling out a description for now
+func getDescription(body string) string {
+  res := make(map[string]interface{})
+  json.Unmarshal([]byte(body), &res)
+ 
+  // mUahhaha - this is fantastically gross looking
+  dashboard := res["dashboard"]
+  desc := dashboard.(map[string]interface{})["description"].(string)
+ 
+  return desc
 }
 
 func getAllDashboards(queryParam string) (string, error) {
