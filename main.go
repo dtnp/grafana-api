@@ -51,6 +51,7 @@ func run(log *slog.Logger) error {
 	// ------------------------------------------------------------------------
 	// ENV Variables
 	// ------------------------------------------------------------------------
+	log.Debug("loading ENV variables")
 	requiredEnvs := []string{"GRAFANA_TOKEN"}
 	errs := ""
 	for _, env := range requiredEnvs {
@@ -65,12 +66,12 @@ func run(log *slog.Logger) error {
 
 	// ------------------------------------------------------------------------
 	// CLI Args
-	// TODO: Currently required - make this optional
 	// ------------------------------------------------------------------------
 	argsWithoutProg := os.Args[1:]
 
 	if len(argsWithoutProg) < 1 {
-		return errors.New("missing args, please specify an api endpoint")
+		log.Debug("no arg specified setting endpoint to 'user'")
+		argsWithoutProg = append(argsWithoutProg, "user")
 	}
 	// ------------------------------------------------------------------------
 	// API Magics
@@ -80,8 +81,16 @@ func run(log *slog.Logger) error {
 	// 	3. loop through and pull out needed pieces (title, description, tags?)
 	// 	4. return all
 	// ------------------------------------------------------------------------
-	if argsWithoutProg[0] == "search" {
+	switch argsWithoutProg[0] {
+	case "user":
+		log.Debug("performing GET 'user' request")
+        body, err := getUser()
+        if err != nil {
+            return fmt.Errorf("getUser: %v", err)
+        }
+        fmt.Println(body)
 
+	case "search":
 		queryParam := "%"
 		// Default to shwoing ALL dashboards, otherwise do a fuzzy search
 		if len(argsWithoutProg) > 1 {
@@ -97,7 +106,7 @@ func run(log *slog.Logger) error {
 		j, _ := json.MarshalIndent(pd, "", " ")
 		fmt.Println(string(j))
 
-	} else {
+	default:
 		body, err := getDashboard(argsWithoutProg[0])
 		if err != nil {
 			return fmt.Errorf("getDashboards [%s]: %v", argsWithoutProg, err)
@@ -106,6 +115,25 @@ func run(log *slog.Logger) error {
 	}
 
 	return nil
+}
+
+func getUser() (string, error) {
+	req, err := _getReq("user")
+	if err != nil {
+		return "", fmt.Errorf("getUser request: %v", err)
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("do request: %v", err)
+	}
+	defer res.Body.Close()
+	body, readErr := io.ReadAll(res.Body)
+	if readErr != nil {
+		return "", fmt.Errorf("read body: %v", err)
+	}
+
+	return string(body), nil
 }
 
 func parseDashboards(ad []dashboard) ([]dashboard, error) {
@@ -130,15 +158,13 @@ func parseDashboards(ad []dashboard) ([]dashboard, error) {
 func getDashboard(dashboardUID string) (string, error) {
 	// TODO: DON'T Fix - no one is going to use this in prod ... right?  RIGHT!?
 	// CLI Injection RISK!  YEA!!
-	url := fmt.Sprintf("%s/dashboards/uid/%s", grafanaUrl, dashboardUID)
+	endpoint := fmt.Sprintf("dashboards/uid/%s", dashboardUID)
 	// Inline debugging?  Damn skippy!
 	//fmt.Println(url)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := _getReq(endpoint)
 	if err != nil {
-		return "", fmt.Errorf("get request: %v", err)
+		return "", fmt.Errorf("getDashboard request: %v", err)
 	}
-	bearer := "Bearer " + os.Getenv("GRAFANA_TOKEN")
-	req.Header.Add("Authorization", bearer)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("do request: %v", err)
@@ -150,6 +176,20 @@ func getDashboard(dashboardUID string) (string, error) {
 	}
 
 	return string(body), nil
+}
+
+// Setup the GET request to the grafana api
+func _getReq(endpoint string) (*http.Request, error) {
+	url := fmt.Sprintf("%s/%s", grafanaUrl, endpoint)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %v", err)
+	}
+	bearer := "Bearer " + os.Getenv("GRAFANA_TOKEN")
+	req.Header.Add("Authorization", bearer)
+
+	return req, err
 }
 
 // parseDashboard - technically, this is only pulling out a description for now
@@ -169,15 +209,13 @@ func getDescription(body string) string {
 
 func getAllDashboards(queryParam string) ([]dashboard, error) {
 
-	url := fmt.Sprintf("%s/search?query=%s", grafanaUrl, queryParam)
+	endpoint := fmt.Sprintf("/search?query=%s", queryParam)
 	// Inline debugging?  Damn skippy!
 	//fmt.Println(url)
-	req, err := http.NewRequest("GET", url, nil)
+    req, err := _getReq(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("get request: %v", err)
+		return nil, fmt.Errorf("getAllDashboards request: %v", err)
 	}
-	bearer := "Bearer " + os.Getenv("GRAFANA_TOKEN")
-	req.Header.Add("Authorization", bearer)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %v", err)
