@@ -10,31 +10,32 @@ import (
 	"os"
 	"strings"
 )
+
 const (
 	grafanaUrl = "https://pantheon.grafana.net/api"
 )
 
-var foldersToIgnore = [...]string {
-  "scratch",
-  "dev",
+var foldersToIgnore = [...]string{
+	"scratch",
+	"dev",
 }
 
 type dashboard struct {
-  ID int `json:"id"`
-  UID string `json:"uid"`
-  Title string `json:"title"`
-  Uri string `json:"uri"`
-  Url string `json:"url"`
-  Slug string `json:"slug"`
-  Type string `json:"type"`
-  Tags []string `json:"tags"`
-  //IsStarred bool `json:"isstarred"`
-  FolderId int `json:"folderid"`
-  FolderUid string `json:"folderuid"`
-  FolderTitle string `json:"foldertitle"`
-  FolderUrl string `json:"folderurl"`
-  //SortMeta int `json:"sortmeta"`
-  Description string `json:"description"`
+	ID    int      `json:"id"`
+	UID   string   `json:"uid"`
+	Title string   `json:"title"`
+	Uri   string   `json:"uri"`
+	Url   string   `json:"url"`
+	Slug  string   `json:"slug"`
+	Type  string   `json:"type"`
+	Tags  []string `json:"tags"`
+	//IsStarred bool `json:"isstarred"`
+	FolderId    int    `json:"folderid"`
+	FolderUid   string `json:"folderuid"`
+	FolderTitle string `json:"foldertitle"`
+	FolderUrl   string `json:"folderurl"`
+	//SortMeta int `json:"sortmeta"`
+	Description string `json:"description"`
 }
 
 func main() {
@@ -79,54 +80,54 @@ func run(log *slog.Logger) error {
 	// 	3. loop through and pull out needed pieces (title, description, tags?)
 	// 	4. return all
 	// ------------------------------------------------------------------------
-  if argsWithoutProg[0] == "search" {
+	if argsWithoutProg[0] == "search" {
 
-    queryParam := "%"
-    // Default to shwoing ALL dashboards, otherwise do a fuzzy search
-    if len(argsWithoutProg) > 1 {
-      queryParam = strings.TrimSpace(argsWithoutProg[1])
-    }
-    allDashboards, err := getAllDashboards(queryParam)
-    if err != nil {
-      return fmt.Errorf("getAllDashboards: %v", err)
-    }
-    //fmt.Println(allDashboards[0].Title)
+		queryParam := "%"
+		// Default to shwoing ALL dashboards, otherwise do a fuzzy search
+		if len(argsWithoutProg) > 1 {
+			queryParam = strings.TrimSpace(argsWithoutProg[1])
+		}
+		allDashboards, err := getAllDashboards(queryParam)
+		if err != nil {
+			return fmt.Errorf("getAllDashboards: %v", err)
+		}
+		//fmt.Println(allDashboards[0].Title)
 
-    pd,_ := parseDashboards(allDashboards)
-    j,_ := json.MarshalIndent(pd, "", " ")
-    fmt.Println(string(j))
+		pd, _ := parseDashboards(allDashboards)
+		j, _ := json.MarshalIndent(pd, "", " ")
+		fmt.Println(string(j))
 
-  } else {
-    body, err := getDashboard(argsWithoutProg[0])
-    if err != nil {
-      return fmt.Errorf("getDashboards [%s]: %v", argsWithoutProg, err)
-    }
-    fmt.Println(body)
-  }
+	} else {
+		body, err := getDashboard(argsWithoutProg[0])
+		if err != nil {
+			return fmt.Errorf("getDashboards [%s]: %v", argsWithoutProg, err)
+		}
+		fmt.Println(body)
+	}
 
 	return nil
 }
 
 func parseDashboards(ad []dashboard) ([]dashboard, error) {
-  var filteredDashboards []dashboard
-  for _, d := range ad {
-    // skip folders
-    if d.Type == "dash-folder" {
-      continue
-    }
+	var filteredDashboards []dashboard
+	for _, d := range ad {
+		// skip folders
+		if d.Type == "dash-folder" {
+			continue
+		}
 
-    fmt.Println(d.Title)
-    singleDashboard,_ := getDashboard(d.UID)
-    desc := getDescription(singleDashboard)
+		fmt.Println(d.Title)
+		singleDashboard, _ := getDashboard(d.UID)
+		desc := getDescription(singleDashboard)
 
-    d.Description = desc
-    filteredDashboards = append(filteredDashboards, d)
-  }
+		d.Description = desc
+		filteredDashboards = append(filteredDashboards, d)
+	}
 
-  return filteredDashboards, nil
+	return filteredDashboards, nil
 }
 
-func getDashboard(dashboardUID string) (string,error) {
+func getDashboard(dashboardUID string) (string, error) {
 	// TODO: DON'T Fix - no one is going to use this in prod ... right?  RIGHT!?
 	// CLI Injection RISK!  YEA!!
 	url := fmt.Sprintf("%s/dashboards/uid/%s", grafanaUrl, dashboardUID)
@@ -148,22 +149,22 @@ func getDashboard(dashboardUID string) (string,error) {
 		return "", fmt.Errorf("read body: %v", err)
 	}
 
-  return string(body), nil
+	return string(body), nil
 }
 
 // parseDashboard - technically, this is only pulling out a description for now
 func getDescription(body string) string {
-  res := make(map[string]interface{})
-  json.Unmarshal([]byte(body), &res)
- 
-  // mUahhaha - this is fantastically gross looking
-  dashboard := res["dashboard"]
-  desc := dashboard.(map[string]interface{})["description"]
-  if desc == nil {
-    return ""
-  }
- 
-  return desc.(string)
+	res := make(map[string]interface{})
+	json.Unmarshal([]byte(body), &res)
+
+	// mUahhaha - this is fantastically gross looking
+	dashboard := res["dashboard"]
+	desc := dashboard.(map[string]interface{})["description"]
+	if desc == nil {
+		return ""
+	}
+
+	return desc.(string)
 }
 
 func getAllDashboards(queryParam string) ([]dashboard, error) {
@@ -187,10 +188,8 @@ func getAllDashboards(queryParam string) ([]dashboard, error) {
 		return nil, fmt.Errorf("read body: %v", err)
 	}
 
-  var allDashboards []dashboard
-  json.Unmarshal(body, &allDashboards)
+	var allDashboards []dashboard
+	json.Unmarshal(body, &allDashboards)
 
-  return allDashboards, nil
+	return allDashboards, nil
 }
-
-
