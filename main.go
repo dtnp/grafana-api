@@ -112,7 +112,7 @@ func run(log *slog.Logger) error {
 
 	case "search":
 		queryParam := "%"
-		fmt.Println("Loading dashboards, please standby...\n")
+		fmt.Println("Loading dashboards, please standby...")
 		// Default to shwoing ALL dashboards, otherwise do a fuzzy search
 		if len(argsWithoutProg) > 1 {
 			queryParam = strings.TrimSpace(argsWithoutProg[1])
@@ -192,6 +192,7 @@ func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
 	var mTopTax = make(map[string]taxonomy)
 
 	for i, d := range ad {
+        // Filter out anything in an unwanted folder
         if _folderIgnoreCheck(d.FolderTitle) {
 			continue
 		}
