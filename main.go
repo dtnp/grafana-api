@@ -28,7 +28,7 @@ type dashboard struct {
 	ID    int    `json:"id"`
 	UID   string `json:"uid"`
 	Title string `json:"title"`
-    Owner string
+	Owner string
 	Uri   string `json:"uri"`
 	Url   string `json:"url"`
 	Slug  string `json:"slug"`
@@ -116,9 +116,9 @@ func run(log *slog.Logger) error {
 		}
 
 		pd, _ := parseDashboards(allDashboards)
-        taxMap := mapDashboardTaxonomy(pd)
-        //taxMap := mapDashboardTaxonomy(allDashboards)
-        printDashTaxMapCli(taxMap)
+		taxMap := mapDashboardTaxonomy(pd)
+		//taxMap := mapDashboardTaxonomy(allDashboards)
+		printDashTaxMapCli(taxMap)
 		break
 
 	default:
@@ -170,9 +170,9 @@ func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
 	var mTopTax = make(map[string]taxonomy)
 
 	for i, d := range ad {
-        if strings.Contains(d.FolderTitle, "-scratch") {
-            continue
-        }
+		if strings.Contains(d.FolderTitle, "-scratch") {
+			continue
+		}
 
 		// Try and retrieve Simplified Taxonomy and owner tags
 		tags := parseTags(d)
@@ -180,7 +180,7 @@ func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
 		level2 := tags["l2"]
 
 		// Stash the tags
-        ad[i].Owner = tags["owner"]
+		ad[i].Owner = tags["owner"]
 		ad[i].L1 = level1
 		ad[i].L2 = level2
 		//mTax[level2] = append(mTax[level2], ad[i])
@@ -209,18 +209,17 @@ func parseTags(d dashboard) map[string]string {
 			tags[t[:2]] = t[3:]
 		}
 
-        // Grab the owner while we're in here
-        if strings.Contains(t, "owner:") {
-            tags[t[:5]] = t[6:]
-        }
+		// Grab the owner while we're in here
+		if strings.Contains(t, "owner:") {
+			tags[t[:5]] = t[6:]
+		}
 	}
 
 	return tags
 }
 
-
 func printDashTaxMapCli(dtm map[string]taxonomy) error {
-    // Buffer to hold template output for later prettification
+	// Buffer to hold template output for later prettification
 	var tmplOut bytes.Buffer
 
 	// Define a template file to render the output.
@@ -229,35 +228,35 @@ func printDashTaxMapCli(dtm map[string]taxonomy) error {
 		return err
 	}
 
-    // Create an .md file to capture the raw markdown
-    f, err := os.Create("./dashboard-taxonomy.md")
-    if err != nil {
-        return err
-    }
+	// Create an .md file to capture the raw markdown
+	f, err := os.Create("./dashboard-taxonomy.md")
+	if err != nil {
+		return err
+	}
 
-    // Execute the template and write to our file
+	// Execute the template and write to our file
 	err = tmpl.ExecuteTemplate(f, "dashboards-md.tpl", dtm)
-    if err != nil {
-        return err
-    }
-    // Don't forget!
-    f.Close()
+	if err != nil {
+		return err
+	}
+	// Don't forget!
+	f.Close()
 
 	// Execute the template with our built up map
 	err = tmpl.ExecuteTemplate(&tmplOut, "dashboards-md.tpl", dtm)
-    if err !=nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
-    // Customize our cli prettifier a little
-    gr, err := glamour.NewTermRenderer(
-        glamour.WithAutoStyle(),
-        glamour.WithPreservedNewLines(),
-        glamour.WithWordWrap(120),
-    )
-    if err != nil {
-        return err
-    }
+	// Customize our cli prettifier a little
+	gr, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithPreservedNewLines(),
+		glamour.WithWordWrap(120),
+	)
+	if err != nil {
+		return err
+	}
 
 	// Make the cli output purdy
 	out, err := gr.Render(tmplOut.String())
@@ -268,7 +267,6 @@ func printDashTaxMapCli(dtm map[string]taxonomy) error {
 	fmt.Print(out)
 	return nil
 }
-
 
 func getDashboard(dashboardUID string) (string, error) {
 	// TODO: DON'T Fix - no one is going to use this in prod ... right?  RIGHT!?
