@@ -21,7 +21,13 @@ const (
 
 var foldersToIgnore = [...]string{
 	"scratch",
-	"dev",
+	"depricated",
+	"deprecated",
+	"broken",
+	"retired",
+	"unknown",
+	"delete",
+	"test",
 }
 
 type dashboard struct {
@@ -106,6 +112,7 @@ func run(log *slog.Logger) error {
 
 	case "search":
 		queryParam := "%"
+		fmt.Println("Loading dashboards, please standby...\n")
 		// Default to shwoing ALL dashboards, otherwise do a fuzzy search
 		if len(argsWithoutProg) > 1 {
 			queryParam = strings.TrimSpace(argsWithoutProg[1])
@@ -154,9 +161,12 @@ func getUser() (string, error) {
 func parseDashboards(ad []dashboard) ([]dashboard, error) {
 	var filteredDashboards []dashboard
 	for _, d := range ad {
-		fmt.Println(d.Title)
 		singleDashboard, _ := getDashboard(d.UID)
 		desc := getDescription(singleDashboard)
+
+        // Folks are going a little crazy with descriptions
+        // killing newlines to help with formatting the output.
+        desc = strings.ReplaceAll(desc, "\n", " ") 
 
 		d.Description = desc
 		filteredDashboards = append(filteredDashboards, d)
@@ -165,12 +175,24 @@ func parseDashboards(ad []dashboard) ([]dashboard, error) {
 	return filteredDashboards, nil
 }
 
+// check our ignore list returns true if it should be ignored
+func _folderIgnoreCheck(folderTitle string) bool {
+
+	for _, f := range foldersToIgnore {
+        if strings.Contains(folderTitle, f) {
+            return true
+        }
+	}
+
+	return false
+}
+
 func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
 	//var mTax = make(map[string][]dashboard)
 	var mTopTax = make(map[string]taxonomy)
 
 	for i, d := range ad {
-		if strings.Contains(d.FolderTitle, "-scratch") {
+        if _folderIgnoreCheck(d.FolderTitle) {
 			continue
 		}
 

@@ -9,11 +9,10 @@ with grafana dashboards.
 
 {{ range $taxName, $dashboards := .TaxL2 -}}
 ### {{ if $taxName }}{{ $taxName }}{{ else }}No Level 2 Taxonomy Tag{{ end }}
-| Dashboard | Folder | Owner | Has Description |
-| --- | --- | --- | --- |
 {{ range $dashboards -}}
-| [{{ .Title }}]({{ $baseUrl }}{{ .Url }}) | [{{ .FolderTitle }}]({{ $baseUrl }}{{.FolderUrl}}) | {{ .Owner }} | {{ if .Description }}yes{{ else }}no{{ end }} | 
-{{ end }}
-{{ end }}
+* [{{ .Title }}]({{ $baseUrl }}{{ .Url }}) [owner: {{ if .Owner }}{{ .Owner }}{{ else }}None Provided{{ end }}]
+  {{ if .Description }}{{ .Description }}{{ else }}No Description Provided{{ end }}
+{{ end -}}
+{{ end -}}
 ---
 {{ end }}
