@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
+
+	"github.com/charmbracelet/glamour"
 )
 
 const (
@@ -21,21 +25,30 @@ var foldersToIgnore = [...]string{
 }
 
 type dashboard struct {
-	ID    int      `json:"id"`
-	UID   string   `json:"uid"`
-	Title string   `json:"title"`
-	Uri   string   `json:"uri"`
-	Url   string   `json:"url"`
-	Slug  string   `json:"slug"`
-	Type  string   `json:"type"`
-	Tags  []string `json:"tags"`
+	ID    int    `json:"id"`
+	UID   string `json:"uid"`
+	Title string `json:"title"`
+    Owner string
+	Uri   string `json:"uri"`
+	Url   string `json:"url"`
+	Slug  string `json:"slug"`
+	//Type  string `json:"type"`
+	L1   string
+	L2   string
+	Tags []string `json:"tags"`
 	//IsStarred bool `json:"isstarred"`
-	FolderId    int    `json:"folderid"`
-	FolderUid   string `json:"folderuid"`
+	//FolderId    int    `json:"folderid"`
+	//FolderUid   string `json:"folderuid"`
 	FolderTitle string `json:"foldertitle"`
 	FolderUrl   string `json:"folderurl"`
 	//SortMeta int `json:"sortmeta"`
 	Description string `json:"description"`
+}
+
+// Somewhere to hold L1 taxonomy and its children
+type taxonomy struct {
+	Name  string
+	TaxL2 map[string][]dashboard
 }
 
 func main() {
@@ -84,11 +97,12 @@ func run(log *slog.Logger) error {
 	switch argsWithoutProg[0] {
 	case "user":
 		log.Debug("performing GET 'user' request")
-        body, err := getUser()
-        if err != nil {
-            return fmt.Errorf("getUser: %v", err)
-        }
-        fmt.Println(body)
+		body, err := getUser()
+		if err != nil {
+			return fmt.Errorf("getUser: %v", err)
+		}
+		fmt.Println(body)
+		break
 
 	case "search":
 		queryParam := "%"
@@ -100,11 +114,12 @@ func run(log *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("getAllDashboards: %v", err)
 		}
-		//fmt.Println(allDashboards[0].Title)
 
 		pd, _ := parseDashboards(allDashboards)
-		j, _ := json.MarshalIndent(pd, "", " ")
-		fmt.Println(string(j))
+        taxMap := mapDashboardTaxonomy(pd)
+        //taxMap := mapDashboardTaxonomy(allDashboards)
+        printDashTaxMapCli(taxMap)
+		break
 
 	default:
 		body, err := getDashboard(argsWithoutProg[0])
@@ -139,11 +154,6 @@ func getUser() (string, error) {
 func parseDashboards(ad []dashboard) ([]dashboard, error) {
 	var filteredDashboards []dashboard
 	for _, d := range ad {
-		// skip folders
-		if d.Type == "dash-folder" {
-			continue
-		}
-
 		fmt.Println(d.Title)
 		singleDashboard, _ := getDashboard(d.UID)
 		desc := getDescription(singleDashboard)
@@ -154,6 +164,111 @@ func parseDashboards(ad []dashboard) ([]dashboard, error) {
 
 	return filteredDashboards, nil
 }
+
+func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
+	//var mTax = make(map[string][]dashboard)
+	var mTopTax = make(map[string]taxonomy)
+
+	for i, d := range ad {
+        if strings.Contains(d.FolderTitle, "-scratch") {
+            continue
+        }
+
+		// Try and retrieve Simplified Taxonomy and owner tags
+		tags := parseTags(d)
+		level1 := tags["l1"]
+		level2 := tags["l2"]
+
+		// Stash the tags
+        ad[i].Owner = tags["owner"]
+		ad[i].L1 = level1
+		ad[i].L2 = level2
+		//mTax[level2] = append(mTax[level2], ad[i])
+
+		_, ok := mTopTax[level1]
+		if !ok {
+			newTax := taxonomy{
+				Name:  level1,
+				TaxL2: make(map[string][]dashboard),
+			}
+			mTopTax[level1] = newTax
+		}
+
+		mTopTax[level1].TaxL2[level2] = append(mTopTax[level1].TaxL2[level2], ad[i])
+	}
+
+	return mTopTax
+}
+
+func parseTags(d dashboard) map[string]string {
+	var tags = make(map[string]string)
+
+	// Loop through the tags and pull out l1 and l2
+	for _, t := range d.Tags {
+		if strings.Contains(t, "l1:") || strings.Contains(t, "l2:") {
+			tags[t[:2]] = t[3:]
+		}
+
+        // Grab the owner while we're in here
+        if strings.Contains(t, "owner:") {
+            tags[t[:5]] = t[6:]
+        }
+	}
+
+	return tags
+}
+
+
+func printDashTaxMapCli(dtm map[string]taxonomy) error {
+    // Buffer to hold template output for later prettification
+	var tmplOut bytes.Buffer
+
+	// Define a template file to render the output.
+	tmpl, err := template.ParseFiles("dashboards-md.tpl")
+	if err != nil {
+		return err
+	}
+
+    // Create an .md file to capture the raw markdown
+    f, err := os.Create("./dashboard-taxonomy.md")
+    if err != nil {
+        return err
+    }
+
+    // Execute the template and write to our file
+	err = tmpl.ExecuteTemplate(f, "dashboards-md.tpl", dtm)
+    if err != nil {
+        return err
+    }
+    // Don't forget!
+    f.Close()
+
+	// Execute the template with our built up map
+	err = tmpl.ExecuteTemplate(&tmplOut, "dashboards-md.tpl", dtm)
+    if err !=nil {
+        return err
+    }
+
+    // Customize our cli prettifier a little
+    gr, err := glamour.NewTermRenderer(
+        glamour.WithAutoStyle(),
+        glamour.WithPreservedNewLines(),
+        glamour.WithWordWrap(120),
+    )
+    if err != nil {
+        return err
+    }
+
+	// Make the cli output purdy
+	out, err := gr.Render(tmplOut.String())
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(out)
+	return nil
+}
+
 
 func getDashboard(dashboardUID string) (string, error) {
 	// TODO: DON'T Fix - no one is going to use this in prod ... right?  RIGHT!?
@@ -209,10 +324,11 @@ func getDescription(body string) string {
 
 func getAllDashboards(queryParam string) ([]dashboard, error) {
 
-	endpoint := fmt.Sprintf("/search?query=%s", queryParam)
+	// "type=dash-db" excludes dash-folder
+	endpoint := fmt.Sprintf("/search?query=%s&type=dash-db", queryParam)
 	// Inline debugging?  Damn skippy!
 	//fmt.Println(url)
-    req, err := _getReq(endpoint)
+	req, err := _getReq(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("getAllDashboards request: %v", err)
 	}
