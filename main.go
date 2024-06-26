@@ -30,6 +30,10 @@ var foldersToIgnore = [...]string{
 	"test",
 }
 
+var tagsToIgnore = [...]string{
+	"broken",
+}
+
 type dashboard struct {
 	ID    int    `json:"id"`
 	UID   string `json:"uid"`
@@ -164,9 +168,9 @@ func parseDashboards(ad []dashboard) ([]dashboard, error) {
 		singleDashboard, _ := getDashboard(d.UID)
 		desc := getDescription(singleDashboard)
 
-        // Folks are going a little crazy with descriptions
-        // killing newlines to help with formatting the output.
-        desc = strings.ReplaceAll(desc, "\n", " ") 
+		// Folks are going a little crazy with descriptions
+		// killing newlines to help with formatting the output.
+		desc = strings.ReplaceAll(desc, "\n", " ")
 
 		d.Description = desc
 		filteredDashboards = append(filteredDashboards, d)
@@ -179,9 +183,23 @@ func parseDashboards(ad []dashboard) ([]dashboard, error) {
 func _folderIgnoreCheck(folderTitle string) bool {
 
 	for _, f := range foldersToIgnore {
-        if strings.Contains(folderTitle, f) {
-            return true
-        }
+		if strings.Contains(folderTitle, f) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// check if the dashboard is tagged with something from the ignore list
+func _tagIgnoreCheck(tags []string) bool {
+
+	for _, dashTag := range tags {
+		for _, badTag := range tagsToIgnore {
+			if strings.Compare(dashTag, badTag) == 0 {
+				return true
+			}
+		}
 	}
 
 	return false
@@ -192,8 +210,13 @@ func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
 	var mTopTax = make(map[string]taxonomy)
 
 	for i, d := range ad {
-        // Filter out anything in an unwanted folder
-        if _folderIgnoreCheck(d.FolderTitle) {
+		// Filter out anything in an unwanted folder
+		if _folderIgnoreCheck(d.FolderTitle) {
+			continue
+		}
+
+		// Filter out anything with an unwanted tag
+		if _tagIgnoreCheck(d.Tags) {
 			continue
 		}
 
