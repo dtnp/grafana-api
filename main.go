@@ -13,6 +13,7 @@ import (
 	"text/template"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/dtnp/go/grafana-api/simpletaxonomy"
 )
 
 const (
@@ -58,7 +59,12 @@ type dashboard struct {
 // Somewhere to hold L1 taxonomy and its children
 type taxonomy struct {
 	Name  string
-	TaxL2 map[string][]dashboard
+	TaxL2 map[string]taxonomyL2
+}
+
+type taxonomyL2 struct {
+	Name       string
+	Dashboards []dashboard
 }
 
 func main() {
@@ -71,6 +77,7 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
+
 	// ------------------------------------------------------------------------
 	// ENV Variables
 	// ------------------------------------------------------------------------
@@ -85,6 +92,14 @@ func run(log *slog.Logger) error {
 
 	if errs != "" {
 		return errors.New(fmt.Sprintf("missing env variables: %s", strings.Trim(errs, " ,")))
+	}
+
+	// ------------------------------------------------------------------------
+	// Simplified Taxonomy Reference
+	// ------------------------------------------------------------------------
+	simpleTax, err := simpletaxonomy.ParseFile("./simplified-taxonomy.json")
+	if err != nil {
+		return err
 	}
 
 	// ------------------------------------------------------------------------
@@ -106,12 +121,14 @@ func run(log *slog.Logger) error {
 	// ------------------------------------------------------------------------
 	switch argsWithoutProg[0] {
 	case "user":
-		log.Debug("performing GET 'user' request")
-		body, err := getUser()
-		if err != nil {
-			return fmt.Errorf("getUser: %v", err)
-		}
-		fmt.Println(body)
+		/*
+			log.Debug("performing GET 'user' request")
+			body, err := getUser()
+			if err != nil {
+				return fmt.Errorf("getUser: %v", err)
+			}
+			fmt.Println(body)
+		*/
 		break
 
 	case "search":
@@ -127,8 +144,7 @@ func run(log *slog.Logger) error {
 		}
 
 		pd, _ := parseDashboards(allDashboards)
-		taxMap := mapDashboardTaxonomy(pd)
-		//taxMap := mapDashboardTaxonomy(allDashboards)
+		taxMap := mapDashboardTaxonomy(pd, simpleTax)
 		printDashTaxMapCli(taxMap)
 		break
 
@@ -205,7 +221,7 @@ func _tagIgnoreCheck(tags []string) bool {
 	return false
 }
 
-func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
+func mapDashboardTaxonomy(ad []dashboard, st simpletaxonomy.SimplifiedTaxonomy) map[string]taxonomy {
 	//var mTax = make(map[string][]dashboard)
 	var mTopTax = make(map[string]taxonomy)
 
@@ -231,16 +247,33 @@ func mapDashboardTaxonomy(ad []dashboard) map[string]taxonomy {
 		ad[i].L2 = level2
 		//mTax[level2] = append(mTax[level2], ad[i])
 
+		// Do we have an entry for this level1 slug yet?
 		_, ok := mTopTax[level1]
 		if !ok {
+			// Nope? Then make one.
 			newTax := taxonomy{
-				Name:  level1,
-				TaxL2: make(map[string][]dashboard),
+				Name:  simpletaxonomy.GetL1NameFromSlug(level1, st),
+				TaxL2: make(map[string]taxonomyL2),
 			}
 			mTopTax[level1] = newTax
 		}
 
-		mTopTax[level1].TaxL2[level2] = append(mTopTax[level1].TaxL2[level2], ad[i])
+		tax2, ok := mTopTax[level1].TaxL2[level2]
+		if ok {
+            // We already have an L2 for this slug
+
+            // Since this is a map we have to modify a copy
+            tax2.Dashboards = append(tax2.Dashboards, ad[i])
+            //Then reassign the whole map entry.
+            mTopTax[level1].TaxL2[level2] = tax2
+		} else {
+            // An L2 for this slug does not yet exist, create on
+			newL2Tax := taxonomyL2{
+				Name:       simpletaxonomy.GetL2NameFromSlug(level2, st),
+				Dashboards: make([]dashboard, 0),
+			}
+			mTopTax[level1].TaxL2[level2] = newL2Tax
+		}
 	}
 
 	return mTopTax

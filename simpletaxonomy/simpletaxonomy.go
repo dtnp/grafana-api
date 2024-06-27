@@ -2,8 +2,8 @@ package simpletaxonomy
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
+	"strings"
 )
 
 type SimplifiedTaxonomy struct {
@@ -11,7 +11,7 @@ type SimplifiedTaxonomy struct {
 }
 
 type TaxL1 struct {
-	Name       string  `json:"li-taxonomy"`
+	Name       string  `json:"l1-taxonomy"`
 	Slug       string  `json:"slug"`
 	Definition string  `json:"definition"`
 	Children   []TaxL2 `json:"children"`
@@ -24,20 +24,46 @@ type TaxL2 struct {
 	Squad      []string `json:"squad"`
 }
 
-func Load() error {
-    content, err := os.ReadFile("./simplified-taxonomy.json")
+// Parse and return the Simplified Taxonomy structure from a .json file
+func ParseFile(filename string) (SimplifiedTaxonomy, error) {
+    var taxonomies SimplifiedTaxonomy
+
+    content, err := os.ReadFile(filename)
     if err != nil {
-        return err
+        return taxonomies, err
     }
 
-    var taxonomies SimplifiedTaxonomy
     err = json.Unmarshal(content, &taxonomies)
     if err != nil {
-        return err
+        return taxonomies, err
     }
 
-    fmt.Println(taxonomies)
+    return taxonomies, nil
+}
 
-    return nil
+// Lookup L1 Taxonomy name from slug
+func GetL1NameFromSlug (slug string, st SimplifiedTaxonomy) string {
+    for _, tax := range st.Taxonomies {
+        if strings.Compare(strings.TrimSpace(slug), tax.Slug) == 0 {
+            return tax.Name
+        }
+    }
+
+    // We didn't find anything pass back the slug
+    return slug
+}
+
+// Lookup L2 Taxonomy name from slug
+func GetL2NameFromSlug (slug string, st SimplifiedTaxonomy) string {
+    for _, tax1 := range st.Taxonomies {
+        for _, tax2 := range tax1.Children {
+            if strings.Compare(strings.TrimSpace(slug), tax2.Slug) == 0 {
+                return tax2.Name
+            }
+        }
+    }
+
+    // We didn't find anything pass back the slug
+    return slug
 }
 
