@@ -68,9 +68,5 @@ or for a specific "fuzzy" search (like folder names)
 
 `$ GRAFANA_TOKEN=$GRAFANA_TOKEN go run main.go search decoupled`
 
-The previous command will display results similar to:  
-![image](https://github.com/rh0/dn-grafana-api/assets/1043361/05bc0a90-5325-48a7-837b-dec096e358b3)
-
-
 **NOTE:** For testing, i would use the second option (`search decoupled`) as it returns enough information without spamming the grafana api's
 
